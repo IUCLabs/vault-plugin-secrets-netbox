@@ -1,4 +1,4 @@
-module git.unkin.net/unkin/vault-plugin-secrets-netbox
+module github.com/IUCLabs/vault-plugin-secrets-netbox
 
 go 1.25.0
 

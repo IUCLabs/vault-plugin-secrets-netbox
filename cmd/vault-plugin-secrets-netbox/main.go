@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/plugin"
 
-	netbox "git.unkin.net/unkin/vault-plugin-secrets-netbox"
+	netbox "github.com/IUCLabs/vault-plugin-secrets-netbox"
 )
 
 func main() {
