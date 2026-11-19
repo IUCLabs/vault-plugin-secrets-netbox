@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  VAULT_ADDR: https://vault.service.consul:8200
+  ARTIFACTAPI: https://artifactapi.k8s.syd1.au.unkin.net
+
+jobs:
+  release:
+    runs-on: iuclabs-release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        with:
+          url: ${{ env.VAULT_ADDR }}
+          method: jwt
+          path: jwt/github/iuclabs
+          role: release
+          jwtGithubAudience: ${{ env.VAULT_ADDR }}
+          exportToken: true
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.20.2
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # fresh login: vault tokens live 15m and the build may eat most of the first one
+      - uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        with:
+          url: ${{ env.VAULT_ADDR }}
+          method: jwt
+          path: jwt/github/iuclabs
+          role: release
+          jwtGithubAudience: ${{ env.VAULT_ADDR }}
+          secrets: |
+            identity/oidc/token/artifactapi-writer token | ARTIFACTAPI_TOKEN
+      - name: Upload x86_64 RPMs to artifactapi
+        run: |
+          for rpm in dist/*.x86_64.rpm; do
+            file=$(basename "$rpm")
+            code=$(curl -s --cacert /etc/vault-ca/ca.crt -o /dev/null -w '%{http_code}' \
+              "${ARTIFACTAPI}/api/v2/remotes/rpm-internal/files/Packages/${file}" || true)
+            if [ "$code" = "200" ]; then echo "${file} exists; skipping"; continue; fi
+            curl -sSf --cacert /etc/vault-ca/ca.crt -X PUT \
+              -H "Authorization: Bearer ${ARTIFACTAPI_TOKEN}" -H "Content-Type: application/x-rpm" \
+              --data-binary "@${rpm}" \
+              "${ARTIFACTAPI}/api/v2/remotes/rpm-internal/files/${file}"
+          done

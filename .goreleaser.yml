@@ -1,0 +1,57 @@
+version: 2
+project_name: vault-plugin-secrets-netbox
+
+builds:
+  - main: ./cmd/vault-plugin-secrets-netbox
+    env:
+      - CGO_ENABLED=0
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Tag }}
+    goos: [linux]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+nfpms:
+  - &rpm
+    id: vault
+    package_name: vault-plugin-secrets-netbox
+    bindir: /opt/vault-plugins
+    scripts:
+      preinstall: packaging/scripts/preinstall-vault.sh
+    replaces: [vault-plugin-secrets-netbox]
+    provides: [vault-plugin-secrets-netbox]
+    formats: [rpm]
+    file_name_template: "{{ .ConventionalFileName }}"
+    release: "1"
+    section: default
+    priority: extra
+    description: Vault/OpenBao secrets engine for NetBox API tokens (/api/users/tokens/)
+    maintainer: IUCLabs
+    homepage: https://github.com/IUCLabs/vault-plugin-secrets-netbox
+    license: MIT
+  - <<: *rpm
+    id: openbao
+    package_name: openbao-plugin-secrets-netbox
+    bindir: /opt/openbao-plugins
+    scripts:
+      preinstall: packaging/scripts/preinstall-openbao.sh
+    replaces: [openbao-plugin-secrets-netbox]
+    provides: [openbao-plugin-secrets-netbox]
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+
+signs:
+  - artifacts: checksum
+    cmd: scripts/sign.sh
+    args: ["${artifact}", "${signature}"]
+
+changelog:
+  disable: true
