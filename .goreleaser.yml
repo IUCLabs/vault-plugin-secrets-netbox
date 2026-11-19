@@ -11,11 +11,10 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Tag }}
     goos: [linux]
-    goarch: [amd64, arm64]
+    goarch: [amd64]
 
 archives:
-  - formats: [binary]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - formats: [none]
 
 nfpms:
   - &rpm
