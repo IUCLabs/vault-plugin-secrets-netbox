@@ -24,8 +24,8 @@ To manage the engine's backends and roles with Terraform or OpenTofu, use
 
 Install the x86_64 RPM from the
 [releases page](https://github.com/IUCLabs/vault-plugin-secrets-netbox/releases):
-`vault-plugin-secrets-netbox` installs to `/opt/vault-plugins`, `openbao-plugin-secrets-netbox`
-to `/opt/openbao-plugins`. Or build the binary from source:
+`vault-plugin-secrets-netbox` installs to `/usr/libexec/vault-plugins`, `openbao-plugin-secrets-netbox`
+to `/usr/libexec/openbao-plugins`. Or build the binary from source:
 
 ```sh
 go install github.com/IUCLabs/vault-plugin-secrets-netbox/cmd/vault-plugin-secrets-netbox@latest
