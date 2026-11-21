@@ -22,24 +22,98 @@ To manage the engine's backends and roles with Terraform or OpenTofu, use
 
 ## Installation
 
-Install the x86_64 RPM from the
-[releases page](https://github.com/IUCLabs/vault-plugin-secrets-netbox/releases):
-`vault-plugin-secrets-netbox` installs to `/usr/libexec/vault-plugins`, `openbao-plugin-secrets-netbox`
-to `/usr/libexec/openbao-plugins`. Or build the binary from source:
+Release assets download through artifactapi's GitHub proxy, which serves
+`https://artifactapi.k8s.syd1.au.unkin.net/api/v1/remote/github/IUCLabs/vault-plugin-secrets-netbox/releases/download/<tag>/<file>`.
+Each method below ends with `SHA256` set for [registration](#register-and-enable).
+With OpenBao, use `bao` in place of `vault`.
 
 ```sh
-go install github.com/IUCLabs/vault-plugin-secrets-netbox/cmd/vault-plugin-secrets-netbox@latest
+TAG=vX.Y.Z  # the release to install
+V=${TAG#v}
+BASE=https://artifactapi.k8s.syd1.au.unkin.net/api/v1/remote/github/IUCLabs/vault-plugin-secrets-netbox/releases/download/$TAG
 ```
 
-Copy it into the directory set as `plugin_directory` in the server config, register it in the plugin catalog
-and enable the secrets engine. With OpenBao, use `bao` in place of `vault`.
+### RPM
+
+`vault-plugin-secrets-netbox` installs `/usr/libexec/vault-plugins/vault-plugin-secrets-netbox`;
+`openbao-plugin-secrets-netbox` installs it in `/usr/libexec/openbao-plugins/`.
+Set the server's `plugin_directory` to that directory.
 
 ```sh
+dnf install vault-plugin-secrets-netbox  # from a yum repo carrying it, or from the release:
+dnf install "$BASE/vault-plugin-secrets-netbox-$V-1.x86_64.rpm"  # openbao-plugin-secrets-netbox-$V-1.x86_64.rpm for OpenBao
+
+SHA256=$(sha256sum /usr/libexec/vault-plugins/vault-plugin-secrets-netbox | cut -d' ' -f1)
+```
+
+### Released binary
+
+`vault-plugin-secrets-netbox_<version>_SHA256SUMS` lists the binary and the RPMs, and
+`SHA256SUMS.sig` is its detached signature by the IUCLabs release GPG key.
+
+```sh
+curl -fLO "$BASE/vault-plugin-secrets-netbox_${V}_linux_amd64"
+curl -fLO "$BASE/vault-plugin-secrets-netbox_${V}_SHA256SUMS"
+curl -fLO "$BASE/vault-plugin-secrets-netbox_${V}_SHA256SUMS.sig"
+gpg --verify "vault-plugin-secrets-netbox_${V}_SHA256SUMS.sig" "vault-plugin-secrets-netbox_${V}_SHA256SUMS"
+sha256sum --check --ignore-missing "vault-plugin-secrets-netbox_${V}_SHA256SUMS"
+
+install -m 0755 "vault-plugin-secrets-netbox_${V}_linux_amd64" <plugin_directory>/vault-plugin-secrets-netbox
 SHA256=$(sha256sum <plugin_directory>/vault-plugin-secrets-netbox | cut -d' ' -f1)
+```
 
+### Kubernetes image volume
+
+`ghcr.io/iuclabs/vault-plugin-secrets-netbox:<tag>` is a `FROM scratch` image holding only
+`/vault-plugin-secrets-netbox`. Mount it read-only into the Vault/OpenBao container with an
+[image volume](https://kubernetes.io/docs/concepts/storage/volumes/#image):
+Kubernetes 1.31+ with the `ImageVolume` feature gate (beta, on by default from
+1.33). Vault and OpenBao only run a binary that sits directly in
+`plugin_directory`, not in a subdirectory, so mount the file itself with
+`subPath`, which on image volumes needs 1.33+.
+
+```yaml
+spec:
+  containers:
+    - name: vault
+      volumeMounts:
+        - name: plugin-netbox
+          mountPath: /vault/plugins/vault-plugin-secrets-netbox  # <plugin_directory>/vault-plugin-secrets-netbox
+          subPath: vault-plugin-secrets-netbox
+          readOnly: true
+  volumes:
+    - name: plugin-netbox
+      image:
+        reference: ghcr.io/iuclabs/vault-plugin-secrets-netbox:vX.Y.Z
+        pullPolicy: IfNotPresent
+```
+
+The image holds the released binary, so its sha256 is the `linux_amd64` line
+of `SHA256SUMS`:
+
+```sh
+SHA256=$(curl -fsSL "$BASE/vault-plugin-secrets-netbox_${V}_SHA256SUMS" | awk '/_linux_amd64$/ {print $1}')
+```
+
+### From source
+
+```sh
+make build  # writes ./dist/vault-plugin-secrets-netbox
+```
+
+Copy it into `plugin_directory` and take `SHA256` from `sha256sum` as above.
+
+### Register and enable
+
+```sh
 vault plugin register -sha256="$SHA256" secret vault-plugin-secrets-netbox
-
 vault secrets enable -path=netbox vault-plugin-secrets-netbox
+```
+
+After replacing the binary, register the new sha256 and reload the plugin:
+
+```sh
+vault write sys/plugins/reload/backend plugin=vault-plugin-secrets-netbox
 ```
 
 ## Configuration
