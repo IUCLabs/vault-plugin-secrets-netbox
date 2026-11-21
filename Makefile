@@ -70,5 +70,6 @@ patch minor major:
 		if (b == "major") print "v" ($$1+1) ".0.0"; \
 		else if (b == "minor") print "v" $$1 "." ($$2+1) ".0"; \
 		else print "v" $$1 "." $$2 "." ($$3+1) }'); \
-	gh release create "$$NEW" --draft --target "$$(git rev-parse HEAD)" --generate-notes --title "$$NEW" && \
-	git tag "$$NEW" && git push origin "$$NEW"
+	SHA=$$(git rev-parse HEAD); \
+	gh release create "$$NEW" --draft --target "$$SHA" --generate-notes --title "$$NEW" || exit 1; \
+	git push origin "$$SHA:refs/tags/$$NEW" || { gh release delete "$$NEW" --yes; exit 1; }
